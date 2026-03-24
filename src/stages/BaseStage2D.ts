@@ -29,7 +29,6 @@ export abstract class BaseStage2D extends Phaser.Scene {
   protected hasDoubleJumped = false;
   protected isOnGround = false;
   protected springLaunched = false;
-  protected invincible = false;
 
   // HUD
   protected hudTimeText!: Phaser.GameObjects.Text;
@@ -322,7 +321,7 @@ export abstract class BaseStage2D extends Phaser.Scene {
   }
 
   protected die() {
-    if (this.isDead || this.invincible) return;
+    if (this.isDead) return;
     this.isDead = true;
     this.deaths++;
 
@@ -347,21 +346,13 @@ export abstract class BaseStage2D extends Phaser.Scene {
     this.player.setPosition(this.config.playerStart.x, this.config.playerStart.y);
     pb.setVelocity(0, 0);
 
-    // Clear nearby falling objects around spawn
+    // Clear falling objects near spawn to prevent unavoidable death loop
     const spawnX = this.config.playerStart.x;
     this.fallingObjects.getChildren().forEach((obj: any) => {
-      if (obj.active && Math.abs(obj.x - spawnX) < 200) {
+      if (obj.active && Math.abs(obj.x - spawnX) < 150) {
         if ((obj as any)._shadow) (obj as any)._shadow.destroy();
         obj.destroy();
       }
-    });
-
-    // Brief invincibility after respawn (2 seconds)
-    this.invincible = true;
-    this.player.setAlpha(0.5);
-    this.time.delayedCall(2000, () => {
-      this.invincible = false;
-      if (this.player) this.player.setAlpha(1);
     });
   }
 
