@@ -8,7 +8,6 @@ export class SplashScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#000000');
 
-    // English text only
     const enText = this.add.text(400, 300, 'Beyond this point,\nthe rules don\'t play by the book.\n\nThere\'s no tidy,\npredictable ending here.', {
       fontSize: '32px',
       color: '#F5F0E8',
@@ -16,19 +15,27 @@ export class SplashScene extends Phaser.Scene {
       fontStyle: 'bold',
       align: 'center',
       lineSpacing: 10,
-    }).setOrigin(0.5).setAngle(1.5);
+    }).setOrigin(0.5).setAngle(1.5).setAlpha(0);
 
-    // Wait 1.5s then fade out over 0.6s
-    this.time.delayedCall(1500, () => {
+    // Fade in
+    this.tweens.add({
+      targets: enText,
+      alpha: 1,
+      duration: 400,
+    });
+
+    // After 1.5s, fade out then transition
+    this.time.delayedCall(1800, () => {
       this.tweens.add({
         targets: enText,
         alpha: 0,
         duration: 600,
-        onComplete: () => {
-          this.scene.start('StageSelect');
-        },
       });
-      this.cameras.main.fadeOut(600, 0, 0, 0);
+    });
+
+    // Scene transition after total ~2.5s
+    this.time.delayedCall(2500, () => {
+      this.scene.start('StageSelect');
     });
   }
 }
