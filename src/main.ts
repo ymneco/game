@@ -28,5 +28,7 @@ const config: Phaser.Types.Core.GameConfig = {
   },
 };
 
+import './testbot';
+
 const game = new Phaser.Game(config);
 (window as any).__game = game;

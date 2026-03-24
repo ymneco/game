@@ -100,8 +100,11 @@ export abstract class BaseStage2D extends Phaser.Scene {
       const eb = (enemy as Phaser.GameObjects.GameObject).body as Phaser.Physics.Arcade.Body;
       // Check if player is above enemy and falling down
       if (pb.velocity.y > 0 && pb.bottom <= eb.top + 20) {
-        // Stomp!
-        (enemy as Phaser.GameObjects.GameObject).destroy();
+        // Stomp! (hide, don't destroy - revive on respawn)
+        const e = enemy as Phaser.GameObjects.GameObject;
+        e.setActive(false);
+        (e as any).setVisible(false);
+        (e.body as Phaser.Physics.Arcade.Body).enable = false;
         pb.setVelocityY(-300);
       } else {
         this.die();
@@ -320,12 +323,47 @@ export abstract class BaseStage2D extends Phaser.Scene {
     });
   }
 
+  // Last death info for bot analysis
+  public lastDeathCause: string = '';
+  public lastDeathX: number = 0;
+  public lastDeathY: number = 0;
+  public lastDeathVY: number = 0;
+
   protected die() {
     if (this.isDead) return;
     this.isDead = true;
     this.deaths++;
 
     const pb = this.player.body as Phaser.Physics.Arcade.Body;
+
+    // Analyze death cause
+    this.lastDeathX = this.player.x;
+    this.lastDeathY = this.player.y;
+    this.lastDeathVY = pb.velocity.y;
+
+    if (this.springLaunched || pb.velocity.y < -500) {
+      this.lastDeathCause = 'spring'; // Launched by fake spring
+    } else if (this.player.y > this.config.worldHeight - 20) {
+      this.lastDeathCause = 'fall'; // Fell into gap
+    } else {
+      // Check proximity to enemies
+      let nearEnemy = false;
+      const checkGroup = (group: Phaser.Physics.Arcade.Group) => {
+        group.getChildren().forEach((e: any) => {
+          if (e.active && Math.abs(e.x - this.player.x) < 40 && Math.abs(e.y - this.player.y) < 40) {
+            nearEnemy = true;
+          }
+        });
+      };
+      checkGroup(this.weakEnemies);
+      checkGroup(this.strongEnemies);
+      if (nearEnemy) {
+        this.lastDeathCause = 'enemy';
+      } else {
+        this.lastDeathCause = 'object'; // Falling object or trap
+      }
+    }
+
     pb.setVelocity(0, 0);
     pb.setAllowGravity(false);
 
@@ -346,12 +384,21 @@ export abstract class BaseStage2D extends Phaser.Scene {
     this.player.setPosition(this.config.playerStart.x, this.config.playerStart.y);
     pb.setVelocity(0, 0);
 
-    // Clear falling objects near spawn to prevent unavoidable death loop
+    // Clear falling objects near spawn
     const spawnX = this.config.playerStart.x;
     this.fallingObjects.getChildren().forEach((obj: any) => {
       if (obj.active && Math.abs(obj.x - spawnX) < 150) {
         if ((obj as any)._shadow) (obj as any)._shadow.destroy();
         obj.destroy();
+      }
+    });
+
+    // Revive all defeated weak enemies
+    this.weakEnemies.getChildren().forEach((e: any) => {
+      if (!e.active) {
+        e.setActive(true);
+        e.setVisible(true);
+        if (e.body) e.body.enable = true;
       }
     });
   }
@@ -454,12 +501,16 @@ export abstract class BaseStage2D extends Phaser.Scene {
       }
     }
 
-    // Mirror enemies: copy player jump
+    // Mirror enemies: if player jumps within detection range, enemy mirrors the jump
+    // Correct approach: jump from OUTSIDE detection range (>120px away) to fly over
+    // Wrong approach: jump near the enemy - it jumps to your exact height = death
+    const pb = this.player.body as Phaser.Physics.Arcade.Body;
     for (const me of this.mirrorEnemies) {
       if (!me.sprite.active) continue;
-      const pb = this.player.body as Phaser.Physics.Arcade.Body;
-      if (pb.velocity.y < -100 && me.body.blocked.down) {
-        me.body.setVelocityY(-500); // Jump when player jumps
+      const dist = Math.abs(this.player.x - me.sprite.x);
+      if (dist < 120 && pb.velocity.y < -50 && me.body.blocked.down) {
+        // Enemy mirrors player's jump velocity exactly = same height = collision
+        me.body.setVelocityY(pb.velocity.y);
       }
     }
 
@@ -563,6 +614,7 @@ export abstract class BaseStage2D extends Phaser.Scene {
         (obj.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
         obj.y = this.config.worldHeight - 40;
         if (obj._groundTimer > 2000) {
+          if (obj._shadow) { obj._shadow.destroy(); obj._shadow = null; }
           obj.destroy();
         }
       }
