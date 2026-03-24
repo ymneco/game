@@ -69,7 +69,8 @@ export abstract class BaseStage2D extends Phaser.Scene {
   create() {
     const cfg = this.config;
     this.cameras.main.setBackgroundColor(cfg.bgColor || '#4488aa');
-    this.physics.world.setBounds(0, 0, cfg.worldWidth, cfg.worldHeight);
+    // Extend world bounds upward so fake springs can launch player off-screen
+    this.physics.world.setBounds(0, -2000, cfg.worldWidth, cfg.worldHeight + 2000);
     this.physics.world.gravity.y = cfg.gravity || 1000;
 
     // Groups
@@ -225,7 +226,7 @@ export abstract class BaseStage2D extends Phaser.Scene {
       if (this.isDead || triggered) return;
       triggered = true;
       const pb = this.player.body as Phaser.Physics.Arcade.Body;
-      pb.setVelocityY(-2000);
+      pb.setVelocityY(-3500); // Massive launch - guaranteed off-screen death
       this.springLaunched = true;
       // Re-enable after respawn
       this.time.delayedCall(2000, () => { triggered = false; });
