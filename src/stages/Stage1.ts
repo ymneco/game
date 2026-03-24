@@ -41,11 +41,11 @@ export class Stage1 extends BaseStage2D {
     // The real path is to jump OVER this platform
     this.addPlatform(830, 450, 80, 20, 0x77bb55);
 
-    // TROLL 2: Fake spring - looks helpful to cross the gap, but launches to death
-    this.addFakeSpring(870, 565);
-    // The real way: small hidden block appears when you jump at x=950
+    // TROLL 2: Fake spring at edge of ground - looks helpful to cross the gap
+    this.addFakeSpring(680, 567);
+    // The real way: use platform at 830, then hidden block at x=950
     this.addHiddenBlock(950, 500, 50, 16);
-    this.addTrollMessage(870, 400, 'That spring looked safe, right?');
+    this.addTrollMessage(680, 400, 'That spring looked safe, right?');
 
     // === SECTION 2: Getting trickier ===
     this.addPlatform(1100, 450, 100, 20, 0x77bb55);
@@ -55,8 +55,8 @@ export class Stage1 extends BaseStage2D {
 
     // TROLL 3: Enemy that looks weak but is actually a mirror enemy
     // It jumps when YOU jump, so you can't dodge by jumping
-    this.addMirrorEnemy(1400, 560);
-    this.addTrollMessage(1350, 400, 'Try jumping over this one...');
+    this.addMirrorEnemy(1550, 560);
+    this.addTrollMessage(1500, 400, 'Try jumping over this one...');
     // The trick: you need to NOT jump and run under while it's on ground
     // Or approach slowly and bait its jump, then run under
 

@@ -28,6 +28,8 @@ export abstract class BaseStage2D extends Phaser.Scene {
   protected canDoubleJump = false;
   protected hasDoubleJumped = false;
   protected isOnGround = false;
+  protected springLaunched = false;
+  protected invincible = false;
 
   // HUD
   protected hudTimeText!: Phaser.GameObjects.Text;
@@ -206,18 +208,25 @@ export abstract class BaseStage2D extends Phaser.Scene {
     });
   }
 
-  /** Fake spring: looks helpful but launches player into death zone */
+  /** Fake spring: looks helpful but launches player into death zone on touch */
   protected addFakeSpring(x: number, y: number) {
-    const spring = this.add.rectangle(x, y, 30, 16, 0xff8800);
-    // Coil decoration
-    this.add.rectangle(x, y - 4, 20, 4, 0xffaa33);
-    this.add.rectangle(x, y + 4, 26, 4, 0xcc6600);
+    const springY = y - 16;
+    const spring = this.add.rectangle(x, springY, 32, 20, 0xff8800);
+    this.add.rectangle(x, springY - 6, 22, 4, 0xffaa33);
+    this.add.rectangle(x, springY + 6, 28, 4, 0xcc6600);
+    this.add.text(x, springY - 18, '^', { fontSize: '16px', color: '#44ff44' }).setOrigin(0.5);
     this.physics.add.existing(spring, true);
+    (spring.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
 
+    let triggered = false;
     this.physics.add.overlap(this.player, spring, () => {
-      if (this.isDead) return;
+      if (this.isDead || triggered) return;
+      triggered = true;
       const pb = this.player.body as Phaser.Physics.Arcade.Body;
-      pb.setVelocityY(-1500); // Launch into ceiling/off screen = death
+      pb.setVelocityY(-2000);
+      this.springLaunched = true;
+      // Re-enable after respawn
+      this.time.delayedCall(2000, () => { triggered = false; });
     });
   }
 
@@ -313,7 +322,7 @@ export abstract class BaseStage2D extends Phaser.Scene {
   }
 
   protected die() {
-    if (this.isDead) return;
+    if (this.isDead || this.invincible) return;
     this.isDead = true;
     this.deaths++;
 
@@ -332,10 +341,28 @@ export abstract class BaseStage2D extends Phaser.Scene {
   protected respawn() {
     this.isDead = false;
     this.hasDoubleJumped = false;
+    this.springLaunched = false;
     const pb = this.player.body as Phaser.Physics.Arcade.Body;
     pb.setAllowGravity(true);
     this.player.setPosition(this.config.playerStart.x, this.config.playerStart.y);
     pb.setVelocity(0, 0);
+
+    // Clear nearby falling objects around spawn
+    const spawnX = this.config.playerStart.x;
+    this.fallingObjects.getChildren().forEach((obj: any) => {
+      if (obj.active && Math.abs(obj.x - spawnX) < 200) {
+        if ((obj as any)._shadow) (obj as any)._shadow.destroy();
+        obj.destroy();
+      }
+    });
+
+    // Brief invincibility after respawn (2 seconds)
+    this.invincible = true;
+    this.player.setAlpha(0.5);
+    this.time.delayedCall(2000, () => {
+      this.invincible = false;
+      if (this.player) this.player.setAlpha(1);
+    });
   }
 
   protected win() {
@@ -377,8 +404,12 @@ export abstract class BaseStage2D extends Phaser.Scene {
     }
 
     // Better jump feel: cut jump short on release, faster fall
-    if (body.velocity.y < 0 && !inputManager.keyboard.isDown('Space') && !inputManager.keyboard.isDown('KeyZ')) {
+    // Skip if spring launched (let the full force apply)
+    if (body.velocity.y < 0 && !this.springLaunched && !inputManager.keyboard.isDown('Space') && !inputManager.keyboard.isDown('KeyZ')) {
       body.setVelocityY(body.velocity.y * 0.9);
+    }
+    if (this.isOnGround) {
+      this.springLaunched = false;
     }
     if (body.velocity.y > 0) {
       body.setVelocityY(Math.min(body.velocity.y + 8, 600)); // Faster fall, capped
