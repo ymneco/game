@@ -46,7 +46,14 @@ export class Stage1 extends BaseStage2D {
     this.addPlatform(870, 530, 50, 14, 0x77bb55);
     this.addPlatform(940, 500, 50, 14, 0x77bb55);
 
+    // TROLL: Hidden block above gap - if you jump from the edge (x~800),
+    // you hit this and lose upward momentum, falling into the gap.
+    // Correct: jump earlier (x~750) or later to avoid the block's position
+    this.addHiddenBlock(830, 480, 40, 16);
+
     // --- SECTION 2: Getting trickier ---
+    // TROLL: Hidden block above the platform - careless jump = bonk + fall
+    this.addHiddenBlock(1100, 390, 40, 16);
     this.addPlatform(1100, 450, 100, 20, 0x77bb55);
     this.addWeakEnemy(1200, 560, 100, 40);
 
