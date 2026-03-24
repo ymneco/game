@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { SplashScene } from './stages/SplashScene';
 import { StageSelect } from './stages/StageSelect';
 import { Stage1 } from './stages/Stage1';
 import { Stage2 } from './stages/Stage2';
@@ -12,7 +13,7 @@ const config: Phaser.Types.Core.GameConfig = {
   width: 800,
   height: 600,
   parent: 'game-container',
-  backgroundColor: '#222233',
+  backgroundColor: '#000000',
   physics: {
     default: 'arcade',
     arcade: {
@@ -20,7 +21,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [StageSelect, Stage1, Stage2, Stage3Scene, Stage4, Stage5Scene, ResultScene],
+  scene: [SplashScene, StageSelect, Stage1, Stage2, Stage3Scene, Stage4, Stage5Scene, ResultScene],
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

@@ -172,23 +172,43 @@ export class Stage3Scene extends Phaser.Scene {
     this.addPlatform3D(42, 1.5, 0, 2, 0.3, 2, 0x887744, true);
     this.addPlatform3D(46, 2, 2, 2, 0.3, 2, 0x887744, true);
 
-    // Final section
+    // TROLL: What looks like the final section...
     this.addPlatform3D(50, 1, 0, 4, 0.5, 4, 0xaa8833);
+
+    // FAKE GOAL - looks exactly like the real goal
+    const fakeGoalGeo = new THREE.CylinderGeometry(0.5, 0.5, 4, 8);
+    const fakeGoalMat = new THREE.MeshLambertMaterial({ color: 0xffdd00, emissive: 0x444400 });
+    const fakeGoal = new THREE.Mesh(fakeGoalGeo, fakeGoalMat);
+    fakeGoal.position.set(52, 2, 0);
+    this.threeScene.add(fakeGoal);
+    // Fake goal kills on touch (checked in update)
+    (fakeGoal as any)._isFakeGoal = true;
+    this.enemies.push({
+      mesh: fakeGoal, type: 'strong',
+      startPos: new THREE.Vector3(52, 2, 0),
+      range: 0, speed: 0, alive: true,
+    });
+
+    // Real path: go AROUND the fake goal to the side
+    this.addPlatform3D(52, 1, 5, 2, 0.5, 2, 0xaa8833);
+    this.addPlatform3D(56, 1.5, 5, 2, 0.5, 2, 0xaa8833);
+    this.addPlatform3D(60, 1, 3, 2, 0.5, 2, 0x887744, true); // crumbling!
+    this.addPlatform3D(64, 1.5, 0, 4, 0.5, 4, 0xaa8833);
 
     // Weak enemies
     this.addEnemy3D(10, 0.5, 0, 'weak', 4, 2);
     this.addEnemy3D(30, 0.5, 0, 'weak', 3, 1.5);
     this.addEnemy3D(38, 1.75, 0, 'weak', 2, 1);
-    this.addEnemy3D(46, 0.5, 0, 'weak', 3, 2);
+    this.addEnemy3D(56, 2, 5, 'weak', 1, 1);
 
     // Strong enemy patrolling
     this.addEnemy3D(34, 0.5, 0, 'strong', 6, 1.5);
 
-    // Goal - tall pillar/arch
+    // Real goal - further away, off to the side
     const goalGeo = new THREE.CylinderGeometry(0.5, 0.5, 4, 8);
-    const goalMat = new THREE.MeshLambertMaterial({ color: 0xffdd00, emissive: 0x444400 });
+    const goalMat = new THREE.MeshLambertMaterial({ color: 0x44ff44, emissive: 0x114411 });
     this.goalMesh = new THREE.Mesh(goalGeo, goalMat);
-    this.goalMesh.position.set(52, 2, 0);
+    this.goalMesh.position.set(66, 3, 0);
     this.threeScene.add(this.goalMesh);
     this.goalBox = new THREE.Box3().setFromObject(this.goalMesh);
 

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { RecordSystem } from '../systems/RecordSystem';
 import { TimerSystem } from '../systems/TimerSystem';
+import { UnlockSystem } from '../systems/UnlockSystem';
 
 export class ResultScene extends Phaser.Scene {
   private timer = new TimerSystem();
@@ -12,6 +13,8 @@ export class ResultScene extends Phaser.Scene {
   create(data: { stageNum: number; time: number; deaths: number }) {
     const { stageNum, time, deaths } = data;
     const record = RecordSystem.save(stageNum, time, deaths);
+    // Unlock next stage
+    UnlockSystem.unlockStage(stageNum + 1);
     const rank = RecordSystem.getRank(stageNum, time, deaths);
 
     this.cameras.main.setBackgroundColor('#1a1a2e');

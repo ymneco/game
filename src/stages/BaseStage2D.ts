@@ -42,6 +42,13 @@ export abstract class BaseStage2D extends Phaser.Scene {
   protected fallingTimer = 0;
   protected movingPlatforms: { sprite: Phaser.GameObjects.Rectangle; body: Phaser.Physics.Arcade.Body; startX: number; endX: number; speed: number; dir: number }[] = [];
 
+  // Troll mechanics
+  protected fakeSpringTraps: { sprite: Phaser.GameObjects.Rectangle; x: number; y: number; triggered: boolean }[] = [];
+  protected hiddenBlocks: { x: number; y: number; w: number; h: number; revealed: boolean; sprite?: Phaser.GameObjects.Rectangle }[] = [];
+  protected mirrorEnemies: { sprite: Phaser.GameObjects.Arc; body: Phaser.Physics.Arcade.Body; baseY: number }[] = [];
+  protected fakeGoals: Phaser.GameObjects.Rectangle[] = [];
+  protected trollMessages: { x: number; y: number; text: string; shown: boolean }[] = [];
+
   abstract buildLevel(): void;
 
   init() {
@@ -50,6 +57,11 @@ export abstract class BaseStage2D extends Phaser.Scene {
     this.hasDoubleJumped = false;
     this.crumblingPlatforms = [];
     this.movingPlatforms = [];
+    this.fakeSpringTraps = [];
+    this.hiddenBlocks = [];
+    this.mirrorEnemies = [];
+    this.fakeGoals = [];
+    this.trollMessages = [];
     this.fallingTimer = 0;
   }
 
@@ -194,6 +206,92 @@ export abstract class BaseStage2D extends Phaser.Scene {
     });
   }
 
+  /** Fake spring: looks helpful but launches player into death zone */
+  protected addFakeSpring(x: number, y: number) {
+    const spring = this.add.rectangle(x, y, 30, 16, 0xff8800);
+    // Coil decoration
+    this.add.rectangle(x, y - 4, 20, 4, 0xffaa33);
+    this.add.rectangle(x, y + 4, 26, 4, 0xcc6600);
+    this.physics.add.existing(spring, true);
+
+    this.physics.add.overlap(this.player, spring, () => {
+      if (this.isDead) return;
+      const pb = this.player.body as Phaser.Physics.Arcade.Body;
+      pb.setVelocityY(-1500); // Launch into ceiling/off screen = death
+    });
+  }
+
+  /** Hidden block: invisible until player jumps into it from below */
+  protected addHiddenBlock(x: number, y: number, w: number = 40, h: number = 20, deadly: boolean = false) {
+    const block = { x, y, w, h, revealed: false, sprite: undefined as Phaser.GameObjects.Rectangle | undefined };
+    this.hiddenBlocks.push(block);
+    // The block only appears when hit from below
+    return block;
+  }
+
+  /** Mirror enemy: jumps when the player jumps, making dodging impossible without trickery */
+  protected addMirrorEnemy(x: number, y: number) {
+    const enemy = this.add.circle(x, y, 14, 0xff44ff);
+    this.strongEnemies.add(enemy);
+    const body = enemy.body as Phaser.Physics.Arcade.Body;
+    body.setCircle(14);
+    body.setAllowGravity(true);
+    body.setBounceY(0);
+
+    this.mirrorEnemies.push({ sprite: enemy, body, baseY: y });
+  }
+
+  /** Fake goal: looks like the real goal but kills you */
+  protected addFakeGoal(x: number, y: number) {
+    const fg = this.add.rectangle(x, y, 40, 60, 0xffdd00);
+    this.add.triangle(x + 20, y - 20, 0, 0, 20, 10, 0, 20, 0xff4444).setDepth(1);
+    this.physics.add.existing(fg, true);
+    this.physics.add.overlap(this.player, fg, () => {
+      if (!this.isDead) {
+        // Gotcha! It's a trap
+        this.die();
+      }
+    });
+    this.fakeGoals.push(fg);
+  }
+
+  /** Troll message: appears when player reaches a certain x position */
+  protected addTrollMessage(x: number, y: number, text: string) {
+    this.trollMessages.push({ x, y, text, shown: false });
+  }
+
+  /** Platform that looks solid but falls when touched */
+  protected addTrapPlatform(x: number, y: number, w: number = 80, h: number = 16) {
+    const sprite = this.add.rectangle(x, y, w, h, 0x66aa44); // Same color as normal platform
+    this.physics.add.existing(sprite, true);
+    (sprite.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+
+    this.physics.add.collider(this.player, sprite, () => {
+      // Instantly fall after landing
+      this.time.delayedCall(100, () => {
+        (sprite.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+        this.tweens.add({
+          targets: sprite,
+          y: sprite.y + 400,
+          alpha: 0,
+          duration: 500,
+        });
+      });
+    });
+  }
+
+  /** Reverse gravity zone */
+  protected addGravityZone(x: number, y: number, w: number, h: number) {
+    const zone = this.add.rectangle(x, y, w, h, 0x4400ff, 0.15);
+    this.physics.add.existing(zone, true);
+    this.physics.add.overlap(this.player, zone, () => {
+      if (!this.isDead) {
+        const pb = this.player.body as Phaser.Physics.Arcade.Body;
+        pb.setVelocityY(-600);
+      }
+    });
+  }
+
   protected addMovingPlatform(x: number, y: number, endX: number, w: number = 80, h: number = 16, speed: number = 60) {
     const sprite = this.add.rectangle(x, y, w, h, 0x6688aa);
     this.physics.add.existing(sprite, false);
@@ -303,6 +401,9 @@ export abstract class BaseStage2D extends Phaser.Scene {
     // Update falling objects
     this.updateFallingObjects(time, delta);
 
+    // Update troll mechanics
+    this.updateTrollMechanics(time);
+
     // HUD
     this.hudTimeText.setText(`Time: ${this.timer.format()}`);
     this.hudDeathText.setText(`Deaths: ${this.deaths}`);
@@ -310,6 +411,56 @@ export abstract class BaseStage2D extends Phaser.Scene {
     // Reset on ground state for double jump
     if (this.isOnGround) {
       this.hasDoubleJumped = false;
+    }
+  }
+
+  private updateTrollMechanics(time: number) {
+    // Hidden blocks: reveal when player hits from below
+    for (const hb of this.hiddenBlocks) {
+      if (hb.revealed) continue;
+      const pb = this.player.body as Phaser.Physics.Arcade.Body;
+      const px = this.player.x, py = this.player.y;
+      // Check if player head hits the block area from below
+      if (pb.velocity.y < 0 &&
+          px > hb.x - hb.w / 2 - 14 && px < hb.x + hb.w / 2 + 14 &&
+          py - 18 < hb.y + hb.h / 2 && py - 18 > hb.y - hb.h / 2 - 10) {
+        hb.revealed = true;
+        hb.sprite = this.add.rectangle(hb.x, hb.y, hb.w, hb.h, 0xaaaa44);
+        this.platforms.add(hb.sprite);
+        (hb.sprite.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+        pb.setVelocityY(50); // Stop upward momentum
+      }
+    }
+
+    // Mirror enemies: copy player jump
+    for (const me of this.mirrorEnemies) {
+      if (!me.sprite.active) continue;
+      const pb = this.player.body as Phaser.Physics.Arcade.Body;
+      if (pb.velocity.y < -100 && me.body.blocked.down) {
+        me.body.setVelocityY(-500); // Jump when player jumps
+      }
+    }
+
+    // Troll messages: display when player reaches x
+    for (const tm of this.trollMessages) {
+      if (tm.shown) continue;
+      if (Math.abs(this.player.x - tm.x) < 100) {
+        tm.shown = true;
+        const txt = this.add.text(tm.x, tm.y, tm.text, {
+          fontSize: '14px',
+          color: '#ff8888',
+          fontFamily: 'Caveat, monospace',
+          backgroundColor: '#00000088',
+          padding: { x: 4, y: 2 },
+        }).setOrigin(0.5).setDepth(50);
+        this.tweens.add({
+          targets: txt,
+          alpha: 0,
+          y: tm.y - 40,
+          duration: 3000,
+          onComplete: () => txt.destroy(),
+        });
+      }
     }
   }
 
