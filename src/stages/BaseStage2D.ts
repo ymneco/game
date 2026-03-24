@@ -453,8 +453,13 @@ export abstract class BaseStage2D extends Phaser.Scene {
       body.setVelocityY(Math.min(body.velocity.y + 8, 600)); // Faster fall, capped
     }
 
-    // Fall death
+    // Fall death (below screen)
     if (this.player.y > this.config.worldHeight + 50) {
+      this.die();
+    }
+
+    // Death above screen (e.g. fake spring launch)
+    if (this.player.y < -100) {
       this.die();
     }
 
